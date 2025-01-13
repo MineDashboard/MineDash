@@ -1,0 +1,94 @@
+#!/bin/bash
+
+# Директория для логов
+LOG_DIR="./logs"
+# Директория для хранения PID
+PID_DIR="./pids"
+
+# Создаем директории для логов и PID, если они не существуют
+mkdir -p "$LOG_DIR"  # Создание директории для логов
+mkdir -p "$PID_DIR"  # Создание директории для хранения PID
+
+# Получаем абсолютный путь к текущей директории
+BASE_DIR=$(pwd)
+
+# Функция для проверки запущенности серверов
+is_fastapi_running() {
+    if [ -f "$BASE_DIR/$PID_DIR/fastapi.pid" ]; then
+        kill -0 $(cat "$BASE_DIR/$PID_DIR/fastapi.pid") > /dev/null 2>&1
+    else
+        return 1  # Если файл не существует, сервер не запущен
+    fi
+}
+
+is_vue_running() {
+    if [ -f "$BASE_DIR/$PID_DIR/vue.pid" ]; then
+        kill -0 $(cat "$BASE_DIR/$PID_DIR/vue.pid") > /dev/null 2>&1
+    else
+        return 1  # Если файл не существует, сервер не запущен
+    fi
+}
+
+# Функция для запуска серверов
+start_servers() {
+    if is_fastapi_running && is_vue_running; then
+        echo "⚠️ Серверы уже запущены."
+        return
+    fi
+
+    echo "🚀 Запуск FastAPI сервера..."
+    cd minedash-backend || { echo "❌ Не удалось перейти в директорию minedash-backend"; return; }
+    
+    # Запуск FastAPI в фоновом режиме с логированием и записью PID в файл
+    uvicorn main:app --reload > "$BASE_DIR/$LOG_DIR/fastapi.log" 2>&1 &  
+    echo $! > "$BASE_DIR/$PID_DIR/fastapi.pid"  # Сохранение PID FastAPI сервера
+
+    echo "🚀 Запуск Vue сервера..."
+    cd ../minedash-frontend || { echo "❌ Не удалось перейти в директорию minedash-frontend"; return; }
+    
+    # Запуск Vue в фоновом режиме с логированием и записью PID в файл
+    npm run serve > "$BASE_DIR/$LOG_DIR/vue.log" 2>&1 &  
+    echo $! > "$BASE_DIR/$PID_DIR/vue.pid"  # Сохранение PID Vue сервера
+
+    echo "✅ Серверы запущены."
+    echo "🌐 FastAPI доступен по адресу: http://127.0.0.1:8000"
+    echo "🌐 Vue доступен по адресу: http://127.0.0.1:8080"
+}
+
+# Функция для остановки серверов
+stop_servers() {
+    if ! is_fastapi_running && ! is_vue_running; then
+        echo "⚠️ Серверы не запущены."
+        return
+    fi
+
+    if is_fastapi_running; then
+        echo "🛑 Остановка FastAPI сервера..."
+        kill -9 $(cat "$BASE_DIR/$PID_DIR/fastapi.pid")  # Останавливаем FastAPI по PID
+        rm -f "$BASE_DIR/$PID_DIR/fastapi.pid"  # Удаляем файл с PID, если он существует
+        echo "✅ FastAPI сервер остановлен."
+    fi
+
+    if is_vue_running; then
+        echo "🛑 Остановка Vue сервера..."
+        kill -9 $(cat "$PID_DIR/vue.pid")  # Останавливаем Vue по PID
+        rm -f "$PID_DIR/vue.pid"  # Удаляем файл с PID, если он существует
+        echo "✅ Vue сервер остановлен."
+    fi
+
+    echo "✅ Серверы остановлены."
+}
+
+# Обработка аргументов командной строки
+case "$1" in
+    start)
+        start_servers
+        ;;
+    stop)
+        stop_servers
+        ;;
+    *)
+        echo "📜 Использование: $0 {start|stop}"
+        exit 1
+        ;;
+esac
