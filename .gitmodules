@@ -1,0 +1,6 @@
+[submodule "minedash-backend"]
+	path = minedash-backend
+	url = https://github.com/MineDashboard/minedash-backend
+[submodule "minedash-frontend"]
+	path = minedash-frontend
+	url = https://github.com/MineDashboard/minedash-frontend
